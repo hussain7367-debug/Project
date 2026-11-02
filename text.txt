@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chloroplast & Photosynthesis 4D Visualizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #030712;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #f3f4f6;
+      user-select: none;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 3px;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #1f2937;
+      border-radius: 6px;
+      height: 6px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #10b981;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+      transition: transform 0.1s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+      background: #34d399;
+    }
+    .pulse-glow {
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-slate-100">
+
+  <!-- Main 3D Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- Header Overlay -->
+  <header class="absolute top-4 left-4 z-10 glass-panel px-5 py-3 rounded-2xl flex items-center gap-4 shadow-2xl pointer-events-auto">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+      <i class="fa-solid fa-leaf text-xl"></i>
+    </div>
+    <div>
+      <h1 class="font-bold text-base tracking-wide text-white flex items-center gap-2">
+        Photosynthesis 4D Explorer
+        <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase font-mono">Time-Sim</span>
+      </h1>
+      <p class="text-xs text-slate-400">Chloroplast Structure &amp; Molecular Kinetics</p>
+    </div>
+  </header>
+
+  <!-- Quick Camera Presets (Top Right) -->
+  <div class="absolute top-4 right-4 z-10 glass-panel p-2 rounded-2xl flex items-center gap-2 shadow-2xl">
+    <button id="cam-overview" class="cam-preset-btn active px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition flex items-center gap-1.5">
+      <i class="fa-solid fa-globe"></i> Organelle
+    </button>
+    <button id="cam-thylakoid" class="cam-preset-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/50 hover:bg-slate-700/60 transition flex items-center gap-1.5">
+      <i class="fa-solid fa-bolt text-amber-400"></i> Light Reactions
+    </button>
+    <button id="cam-stroma" class="cam-preset-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/50 hover:bg-slate-700/60 transition flex items-center gap-1.5">
+      <i class="fa-solid fa-arrows-spin text-cyan-400"></i> Calvin Cycle
+    </button>
+    <button id="reset-cam-btn" title="Reset View" class="w-8 h-8 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/50 flex items-center justify-center transition">
+      <i class="fa-solid fa-rotate-left text-xs"></i>
+    </button>
+  </div>
+
+  <!-- Component Info Panel (Middle Left) -->
+  <aside id="info-card" class="absolute top-20 left-4 z-10 w-80 max-h-[70vh] glass-panel rounded-2xl p-5 shadow-2xl custom-scroll overflow-y-auto transition-all duration-300">
+    <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+      <span id="card-tag" class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">Selected Component</span>
+      <span id="card-type" class="text-xs text-slate-400 font-mono">Structural Unit</span>
+    </div>
+    <h2 id="card-title" class="text-lg font-bold text-white mb-2">Chloroplast Organelle</h2>
+    <p id="card-desc" class="text-xs text-slate-300 leading-relaxed mb-4">
+      Double-membrane plant organelle responsible for capturing solar radiation and fixing carbon dioxide into high-energy chemical compounds. Click on any sub-structure to inspect its biological function.
+    </p>
+
+    <!-- Reaction Summary Box -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2">
+      <div class="font-semibold text-emerald-400 flex items-center gap-1.5">
+        <i class="fa-solid fa-flask"></i> Key Dynamics
+      </div>
+      <div class="flex justify-between text-slate-300">
+        <span class="text-slate-400">Primary Reaction:</span>
+        <span id="card-stat-1" class="font-mono text-emerald-300">Light + H2O + CO2</span>
+      </div>
+      <div class="flex justify-between text-slate-300">
+        <span class="text-slate-400">Primary Product:</span>
+        <span id="card-stat-2" class="font-mono text-cyan-300">Glucose + O2</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 4D Simulation Control Deck (Bottom Center) -->
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-[92%] max-w-2xl glass-panel p-4 rounded-2xl shadow-2xl flex flex-col gap-3">
+    
+    <!-- Top Row: Time Slider & Controls -->
+    <div class="flex items-center justify-between gap-4">
+      <button id="play-pause-btn" class="w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold flex items-center justify-center transition shadow-lg shadow-emerald-500/30">
+        <i class="fa-solid fa-pause text-base"></i>
+      </button>
+
+      <div class="flex-grow flex flex-col gap-1">
+        <div class="flex justify-between items-center text-xs">
+          <span class="font-semibold text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-clock text-emerald-400"></i> 4D Time Scrub (Reaction Kinetics)
+          </span>
+          <span id="time-val" class="font-mono text-emerald-400 font-bold">1.0x Speed</span>
+        </div>
+        <input type="range" id="time-slider" min="0" max="3" step="0.1" value="1" class="w-full">
+      </div>
+
+      <div class="flex flex-col gap-1 w-28">
+        <span class="text-[10px] text-slate-400 font-semibold">Light Intensity</span>
+        <input type="range" id="light-slider" min="0.1" max="2" step="0.1" value="1" class="w-full">
+      </div>
+    </div>
+
+    <!-- Bottom Row: Molecular Legend -->
+    <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-2 text-[11px]">
+      <span class="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">4D Molecules:</span>
+      <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block shadow-sm"></span> H2O</div>
+      <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block shadow-sm"></span> O2</div>
+      <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-300 inline-block shadow-sm"></span> e-</div>
+      <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-300 inline-block shadow-sm"></span> H+</div>
+      <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block shadow-sm"></span> ATP/NADPH</div>
+      <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block shadow-sm"></span> Glucose</div>
+    </div>
+  </div>
+
+  <script>
+    // --- BIOLOGICAL COMPONENT KNOWLEDGE BASE --- //
+    const componentData = {
+      chloroplast: {
+        title: "Chloroplast Organelle",
+        tag: "Whole Organelle",
+        type: "Double Membrane Bound",
+        desc: "The photosynthetic engine of plant cells. It converts photon light energy into chemical potential energy via two coupled pathways: Light Reactions (in Thylakoids) and Light-Independent Reactions (in Stroma).",
+        stat1: "Photon Harvest",
+        stat2: "Glucose Output"
+      },
+      outerMembrane: {
+        title: "Outer & Inner Membrane",
+        tag: "Boundary Shell",
+        type: "Lipid Bilayer Envelope",
+        desc: "A semi-transparent double membrane protecting the stroma. Porins allow small molecules and ions to diffuse across into the intermembrane space.",
+        stat1: "Protective Barrier",
+        stat2: "Selective Transport"
+      },
+      granum: {
+        title: "Thylakoid Granum Stack",
+        tag: "Light-Reaction Site",
+        type: "Membrane Stack",
+        desc: "Stacks of disc-shaped thylakoids (grana) embedded with chlorophyll, PSII, PSI, and ATP Synthase complexes. Light absorption splits water into protons, electrons, and oxygen gas.",
+        stat1: "Water Photolysis",
+        stat2: "Proton Gradient"
+      },
+      ps2: {
+        title: "Photosystem II (PSII / P680)",
+        tag: "Protein Complex",
+        type: "Light-Harvesting Complex",
+        desc: "Absorbs 680nm photons, exciting electrons. PSII contains the Oxygen-Evolving Complex (OEC) which splits H2O into O2 gas and H+ ions to replenish lost electrons.",
+        stat1: "Absorbs 680nm Light",
+        stat2: "Splits H2O → O2 + e-"
+      },
+      ps1: {
+        title: "Photosystem I (PSI / P700)",
+        tag: "Protein Complex",
+        type: "NADPH Generator",
+        desc: "Absorbs 700nm photons to re-energize electrons passing through the electron transport chain, transferring them via Ferredoxin to NADP+ Reductase to produce NADPH.",
+        stat1: "Absorbs 700nm Light",
+        stat2: "Produces NADPH"
+      },
+      atpSynthase: {
+        title: "ATP Synthase Engine",
+        tag: "Enzyme Complex",
+        type: "Rotary Molecular Motor",
+        desc: "Uses the high proton gradient (H+) accumulated inside the thylakoid lumen to spin its catalytic head, phosphorylating ADP + Pi into high-energy ATP.",
+        stat1: "Proton Flux Driven",
+        stat2: "Generates ATP"
+      },
+      stroma: {
+        title: "Stroma Fluid Matrix",
+        tag: "Calvin Cycle Site",
+        type: "Aqueous Matrix",
+        desc: "The dense fluid surrounding grana, containing RuBisCO enzymes. Here, ATP and NADPH generated by light reactions fix CO2 molecules into G3P and Glucose.",
+        stat1: "RuBisCO Fixation",
+        stat2: "Calvin Cycle"
+      }
+    };
+
+    // --- THREE.JS ENGINE SETUP --- //
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x030712, 0.025);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 8, 18);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setClearColor(0x030712, 1);
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxDistance = 35;
+    controls.minDistance = 2;
+    controls.target.set(0, 0, 0);
+
+    // Lighting Setup
+    const ambientLight = new THREE.AmbientLight(0xdcfce7, 0.6);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfef08a, 1.8);
+    sunLight.position.set(10, 20, 10);
+    sunLight.castShadow = true;
+    scene.add(sunLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.8);
+    rimLight.position.set(-10, -10, -10);
+    scene.add(rimLight);
+
+    // Interactive Raycaster for Picking
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // Simulation State
+    const simState = {
+      speed: 1.0,
+      lightIntensity: 1.0,
+      paused: false,
+      selectedComponent: 'chloroplast'
+    };
+
+    // --- SCENE MESH GENERATION --- //
+    const chloroplastGroup = new THREE.Group();
+    scene.add(chloroplastGroup);
+
+    const interactiveObjects = [];
+
+    // 1. Outer Membrane Shell (Cutaway Ellipsoid)
+    const shellGeo = new THREE.SphereGeometry(6, 48, 32);
+    // Scale into an elongated chloroplast shape
+    shellGeo.scale(1.5, 0.7, 1.0);
+
+    const shellMat = new THREE.MeshPhysicalMaterial({
+      color: 0x15803d,
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.2,
+      transmission: 0.6,
+      thickness: 1.2,
+      side: THREE.DoubleSide
+    });
+
+    const outerMembraneMesh = new THREE.Mesh(shellGeo, shellMat);
+    outerMembraneMesh.userData = { id: 'outerMembrane' };
+    chloroplastGroup.add(outerMembraneMesh);
+    interactiveObjects.push(outerMembraneMesh);
+
+    // 2. Thylakoid Grana Stacks & Intergranal Lamellae
+    const granaGroup = new THREE.Group();
+    chloroplastGroup.add(granaGroup);
+
+    const discGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.16, 24);
+    const thylakoidMat = new THREE.MeshStandardMaterial({
+      color: 0x16a34a,
+      roughness: 0.3,
+      metalness: 0.1
+    });
+
+    const ps2Mat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2 }); // PSII (Cyan)
+    const ps1Mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 }); // PSI (Amber)
+    const atpMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.2 }); // ATP Synthase (Emerald)
+
+    const granaPositions = [
+      { x: -3.5, z: -1, count: 6 },
+      { x: -1.8, z: 1.2, count: 7 },
+      { x: 0, z: -1.5, count: 8 },
+      { x: 1.8, z: 1.0, count: 6 },
+      { x: 3.5, z: -0.8, count: 7 },
+      { x: -0.5, z: 2.2, count: 5 }
+    ];
+
+    const granaMeshes = [];
+
+    granaPositions.forEach((pos, gIdx) => {
+      const stackGroup = new THREE.Group();
+      stackGroup.position.set(pos.x, -0.6, pos.z);
+
+      for (let i = 0; i < pos.count; i++) {
+        const disc = new THREE.Mesh(discGeo, thylakoidMat);
+        disc.position.y = i * 0.22;
+        disc.castShadow = true;
+        disc.receiveShadow = true;
+        disc.userData = { id: 'granum' };
+        stackGroup.add(disc);
+        interactiveObjects.push(disc);
+
+        // Add embedded proteins on outer thylakoid margins
+        if (i % 2 === 0) {
+          // PSII
+          const ps2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), ps2Mat);
+          ps2.position.set(0.75, i * 0.22, 0);
+          ps2.userData = { id: 'ps2' };
+          stackGroup.add(ps2);
+          interactiveObjects.push(ps2);
+
+          // PSI
+          const ps1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), ps1Mat);
+          ps1.position.set(-0.75, i * 0.22, 0);
+          ps1.userData = { id: 'ps1' };
+          stackGroup.add(ps1);
+          interactiveObjects.push(ps1);
+        }
+
+        if (i === pos.count - 1) {
+          // ATP Synthase on top
+          const atpHead = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 0.3, 12), atpMat);
+          atpHead.position.set(0, i * 0.22 + 0.2, 0);
+          atpHead.userData = { id: 'atpSynthase' };
+          stackGroup.add(atpHead);
+          interactiveObjects.push(atpHead);
+        }
+      }
+      granaGroup.add(stackGroup);
+      granaMeshes.push(stackGroup);
+    });
+
+    // Connecting Lamellae Bridges
+    const lamellaMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.4 });
+    for (let i = 0; i < granaPositions.length - 1; i++) {
+      const p1 = granaPositions[i];
+      const p2 = granaPositions[i + 1];
+      const distance = Math.hypot(p2.x - p1.x, p2.z - p1.z);
+      const bridgeGeo = new THREE.BoxGeometry(distance, 0.08, 0.3);
+      const bridge = new THREE.Mesh(bridgeGeo, lamellaMat);
+      
+      bridge.position.set((p1.x + p2.x) / 2, 0, (p1.z + p2.z) / 2);
+      bridge.rotation.y = Math.atan2(p2.x - p1.x, p2.z - p1.z) + Math.PI / 2;
+      bridge.userData = { id: 'granum' };
+      granaGroup.add(bridge);
+    }
+
+    // --- 4D PARTICLE FLOW SYSTEM (Molecular Dynamics) --- //
+
+    // A. Light Photon Rays (Sunlight to PSII)
+    const photonCount = 60;
+    const photonGeo = new THREE.BufferGeometry();
+    const photonPositions = new Float32Array(photonCount * 3);
+
+    for (let i = 0; i < photonCount; i++) {
+      photonPositions[i * 3] = (Math.random() - 0.5) * 12;
+      photonPositions[i * 3 + 1] = 8 + Math.random() * 4;
+      photonPositions[i * 3 + 2] = (Math.random() - 0.5) * 8;
+    }
+    photonGeo.setAttribute('position', new THREE.BufferAttribute(photonPositions, 3));
+
+    const photonMat = new THREE.PointsMaterial({
+      color: 0xfef08a,
+      size: 0.25,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    });
+    const photonParticles = new THREE.Points(photonGeo, photonMat);
+    scene.add(photonParticles);
+
+    // B. Electron Transport Chain Particles (e- flowing across grana)
+    const eCount = 40;
+    const eGeo = new THREE.BufferGeometry();
+    const ePositions = new Float32Array(eCount * 3);
+    for (let i = 0; i < eCount * 3; i++) ePositions[i] = 0;
+    eGeo.setAttribute('position', new THREE.BufferAttribute(ePositions, 3));
+
+    const eMat = new THREE.PointsMaterial({
+      color: 0xfcd34d,
+      size: 0.2,
+      transparent: true,
+      opacity: 1.0,
+      blending: THREE.AdditiveBlending
+    });
+    const electronParticles = new THREE.Points(eGeo, eMat);
+    chloroplastGroup.add(electronParticles);
+
+    // C. Proton Gradient Flow (H+ from stroma into lumen and through ATP Synthase)
+    const hCount = 80;
+    const hGeo = new THREE.BufferGeometry();
+    const hPos = new Float32Array(hCount * 3);
+    for (let i = 0; i < hCount; i++) {
+      hPos[i * 3] = (Math.random() - 0.5) * 8;
+      hPos[i * 3 + 1] = (Math.random() - 0.5) * 2;
+      hPos[i * 3 + 2] = (Math.random() - 0.5) * 5;
+    }
+    hGeo.setAttribute('position', new THREE.BufferAttribute(hPos, 3));
+
+    const hMat = new THREE.PointsMaterial({
+      color: 0x93c5fd,
+      size: 0.18,
+      transparent: true,
+      opacity: 0.85
+    });
+    const protonParticles = new THREE.Points(hGeo, hMat);
+    chloroplastGroup.add(protonParticles);
+
+    // D. Calvin Cycle Ring Flow (Stroma CO2 -> Glucose)
+    const calvinCount = 50;
+    const calvinGeo = new THREE.BufferGeometry();
+    const calvinPos = new Float32Array(calvinCount * 3);
+    calvinGeo.setAttribute('position', new THREE.BufferAttribute(calvinPos, 3));
+
+    const calvinMat = new THREE.PointsMaterial({
+      color: 0x34d399,
+      size: 0.22,
+      transparent: true,
+      opacity: 0.9
+    });
+    const calvinParticles = new THREE.Points(calvinGeo, calvinMat);
+    calvinParticles.position.set(0, 0, 0);
+    chloroplastGroup.add(calvinParticles);
+
+    // --- ANIMATION & TIME-STEP ENGINE --- //
+    let clock = new THREE.Clock();
+
+    function updateSimulation(delta) {
+      if (simState.paused) return;
+
+      const timeScale = simState.speed * delta;
+      const elapsedTime = clock.getElapsedTime() * simState.speed;
+
+      // 1. Animate Photons
+      const pPos = photonParticles.geometry.attributes.position.array;
+      for (let i = 0; i < photonCount; i++) {
+        pPos[i * 3 + 1] -= 8 * timeScale * simState.lightIntensity;
+        if (pPos[i * 3 + 1] < -1) {
+          pPos[i * 3 + 1] = 10 + Math.random() * 2;
+        }
+      }
+      photonParticles.geometry.attributes.position.needsUpdate = true;
+
+      // 2. Animate Electrons along Grana Pathways
+      const ePos = electronParticles.geometry.attributes.position.array;
+      for (let i = 0; i < eCount; i++) {
+        const t = (elapsedTime * 1.5 + i * 0.2) % (Math.PI * 2);
+        ePos[i * 3] = Math.cos(t * 2) * 3.5;
+        ePos[i * 3 + 1] = Math.sin(t * 3) * 0.4;
+        ePos[i * 3 + 2] = Math.sin(t * 2) * 2.0;
+      }
+      electronParticles.geometry.attributes.position.needsUpdate = true;
+
+      // 3. Animate Protons (H+) through ATP Synthase
+      const hP = protonParticles.geometry.attributes.position.array;
+      for (let i = 0; i < hCount; i++) {
+        hP[i * 3 + 1] += 1.2 * timeScale;
+        if (hP[i * 3 + 1] > 1.8) hP[i * 3 + 1] = -1.2;
+      }
+      protonParticles.geometry.attributes.position.needsUpdate = true;
+
+      // 4. Animate Calvin Cycle Orbital Ring
+      const cPos = calvinParticles.geometry.attributes.position.array;
+      const radius = 4.2;
+      for (let i = 0; i < calvinCount; i++) {
+        const angle = (i / calvinCount) * Math.PI * 2 + elapsedTime * 0.8;
+        cPos[i * 3] = Math.cos(angle) * radius;
+        cPos[i * 3 + 1] = Math.sin(angle * 2) * 0.5;
+        cPos[i * 3 + 2] = Math.sin(angle) * radius;
+      }
+      calvinParticles.geometry.attributes.position.needsUpdate = true;
+
+      // 5. Gentle Chloroplast Floating Movement
+      chloroplastGroup.rotation.y = Math.sin(elapsedTime * 0.2) * 0.15;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      controls.update();
+      updateSimulation(delta);
+      renderer.render(scene, camera);
+    }
+
+    // --- INTERACTIVE PICKING & UI BINDINGS --- //
+
+    function updateCardInfo(id) {
+      const info = componentData[id] || componentData['chloroplast'];
+      document.getElementById('card-title').textContent = info.title;
+      document.getElementById('card-tag').textContent = info.tag;
+      document.getElementById('card-type').textContent = info.type;
+      document.getElementById('card-desc').textContent = info.desc;
+      document.getElementById('card-stat-1').textContent = info.stat1;
+      document.getElementById('card-stat-2').textContent = info.stat2;
+      simState.selectedComponent = id;
+    }
+
+    function onPointerDown(event) {
+      // Avoid picking when interacting with HTML UI overlays
+      if (event.clientY > window.innerHeight - 120 || event.clientX < 340 && event.clientY < 320) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(interactiveObjects);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        if (hit.userData && hit.userData.id) {
+          updateCardInfo(hit.userData.id);
+        }
+      }
+    }
+
+    window.addEventListener('pointerdown', onPointerDown);
+
+    // Camera Preset Smooth Transitions
+    function setCameraPreset(preset) {
+      document.querySelectorAll('.cam-preset-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40');
+        btn.classList.add('bg-slate-800/80', 'text-slate-300', 'border-slate-700/50');
+      });
+
+      if (preset === 'overview') {
+        document.getElementById('cam-overview').classList.add('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40');
+        animateCameraPosition(0, 8, 18, 0, 0, 0);
+        updateCardInfo('chloroplast');
+      } else if (preset === 'thylakoid') {
+        document.getElementById('cam-thylakoid').classList.add('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40');
+        animateCameraPosition(-1.8, 2.5, 4.5, -1.8, 0, 1.2);
+        updateCardInfo('granum');
+      } else if (preset === 'stroma') {
+        document.getElementById('cam-stroma').classList.add('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40');
+        animateCameraPosition(0, 7, 0.1, 0, 0, 0);
+        updateCardInfo('stroma');
+      }
+    }
+
+    function animateCameraPosition(px, py, pz, tx, ty, tz) {
+      const startPos = camera.position.clone();
+      const targetPos = new THREE.Vector3(px, py, pz);
+      const startTarget = controls.target.clone();
+      const endTarget = new THREE.Vector3(tx, ty, tz);
+
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 0.05;
+        camera.position.lerpVectors(startPos, targetPos, progress);
+        controls.target.lerpVectors(startTarget, endTarget, progress);
+        if (progress >= 1) clearInterval(interval);
+      }, 16);
+    }
+
+    // UI Event Listeners
+    document.getElementById('cam-overview').addEventListener('click', () => setCameraPreset('overview'));
+    document.getElementById('cam-thylakoid').addEventListener('click', () => setCameraPreset('thylakoid'));
+    document.getElementById('cam-stroma').addEventListener('click', () => setCameraPreset('stroma'));
+    document.getElementById('reset-cam-btn').addEventListener('click', () => setCameraPreset('overview'));
+
+    const playPauseBtn = document.getElementById('play-pause-btn');
+    playPauseBtn.addEventListener('click', () => {
+      simState.paused = !simState.paused;
+      playPauseBtn.innerHTML = simState.paused ?
+        '<i class="fa-solid fa-play text-base"></i>' :
+        '<i class="fa-solid fa-pause text-base"></i>';
+    });
+
+    const timeSlider = document.getElementById('time-slider');
+    timeSlider.addEventListener('input', (e) => {
+      simState.speed = parseFloat(e.target.value);
+      document.getElementById('time-val').textContent = simState.speed.toFixed(1) + 'x Speed';
+    });
+
+    const lightSlider = document.getElementById('light-slider');
+    lightSlider.addEventListener('input', (e) => {
+      simState.lightIntensity = parseFloat(e.target.value);
+      sunLight.intensity = 1.8 * simState.lightIntensity;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- INITIALIZATION --- //
+    window.onload = function() {
+      animate();
+    };
+  </script>
+</body>
+</html>
